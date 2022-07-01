@@ -26,6 +26,7 @@ import android.app.Application;
 import android.content.Context;
 import android.content.res.Resources;
 
+import com.clevertap.android.sdk.ActivityLifecycleCallback;
 import com.leanplum.annotations.Parser;
 import com.leanplum.internal.Constants;
 
@@ -52,6 +53,9 @@ public class LeanplumApplication extends Application {
     instance = this;
     LeanplumActivityHelper.enableLifecycleCallbacks(this);
     Parser.parseVariables(this);
+
+    //todo doubt :  how to disable if user has not chosen ct sdk?
+    ActivityLifecycleCallback.register(this);
   }
 
   @Override

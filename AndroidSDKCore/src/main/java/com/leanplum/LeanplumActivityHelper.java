@@ -30,6 +30,7 @@ import android.content.Intent;
 import android.content.res.Resources;
 import android.os.Bundle;
 
+import com.clevertap.android.sdk.ActivityLifecycleCallback;
 import com.leanplum.annotations.Parser;
 import com.leanplum.callbacks.PostponableAction;
 import com.leanplum.internal.ActionManager;
@@ -205,6 +206,9 @@ public class LeanplumActivityHelper {
     registeredCallbacks = true;
     // run pending actions if any upon start
     LeanplumInternal.addStartIssuedHandler(runPendingActionsRunnable);
+
+    //todo doubt :  how to disable if user has not chosen ct sdk?
+    ActivityLifecycleCallback.register(app);
   }
 
   public LeanplumResources getLeanplumResources() {

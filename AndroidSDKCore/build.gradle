@@ -41,6 +41,13 @@ dependencies {
     // Compile dependencies will be added as dependency in pom file.
     api "androidx.legacy:legacy-support-v4:1.0.0"
     api "androidx.appcompat:appcompat:${APPCOMPAT_LIBRARY_VERSION}"
+
+    api fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
+    api files('libs/clevertap-android-sdk-4.5.0.aar')    // clevertap core sdk
+    api files('libs/clevertap-geofence-sdk-1.1.0.aar')    // for geofencing
+    api files('libs/clevertap-xiaomi-sdk-1.4.0.aar')    // for xiaomi push.
+    api files('libs/push-templates-1.0.2.aar')    // for Push Templates
+
 }
 
 task generateJavadoc(type: Javadoc) {

@@ -21,12 +21,19 @@
 
 package com.leanplum;
 
+import android.annotation.SuppressLint;
+import android.app.Application;
 import android.content.Context;
 import android.location.Location;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+
+import com.clevertap.android.sdk.ActivityLifecycleCallback;
+import com.clevertap.android.sdk.CleverTapAPI;
+import com.clevertap.android.sdk.CleverTapInstanceConfig;
+import com.clevertap.android.sdk.pushnotification.PushConstants;
 import com.leanplum.ActionContext.ContextualValues;
 import com.leanplum.callbacks.ActionCallback;
 import com.leanplum.callbacks.ForceContentUpdateCallback;
@@ -36,7 +43,6 @@ import com.leanplum.callbacks.RegisterDeviceFinishedCallback;
 import com.leanplum.callbacks.StartCallback;
 import com.leanplum.callbacks.VariablesChangedCallback;
 import com.leanplum.internal.APIConfig;
-import com.leanplum.internal.ActionManager;
 import com.leanplum.internal.ApiConfigLoader;
 import com.leanplum.internal.Constants;
 import com.leanplum.internal.CountAggregator;
@@ -56,7 +62,6 @@ import com.leanplum.internal.RequestBuilder;
 import com.leanplum.internal.RequestSender;
 import com.leanplum.internal.RequestSenderTimer;
 import com.leanplum.internal.RequestUtil;
-import com.leanplum.internal.Socket;
 import com.leanplum.internal.Util;
 import com.leanplum.internal.Util.DeviceIdInfo;
 import com.leanplum.internal.VarCache;
@@ -73,6 +78,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,9 +95,6 @@ public class Leanplum {
   public static final int ACTION_KIND_MESSAGE = 1;
   public static final int ACTION_KIND_ACTION = 1 << 1;
 
-  /**
-   * Default event name to use for Purchase events.
-   */
   public static final String PURCHASE_EVENT_NAME = "Purchase";
   private static final String LEANPLUM_PUSH_SERVICE = "com.leanplum.LeanplumPushService";
 
@@ -121,10 +124,21 @@ public class Leanplum {
   private static CountAggregator countAggregator = new CountAggregator();
   private static FeatureFlagManager featureFlagManager = FeatureFlagManager.INSTANCE;
 
+  private static CleverTapAPI cleverTapAPI = null;
+  private static CleverTapInstanceConfig ctInstanceConfig = null;
+
+  public static enum BackendServer {CleverTap,LeanPlum}
+
+  private static final LinkedHashSet<BackendServer> backendList =  new LinkedHashSet<>();
+
   private Leanplum() {
   }
 
-  /**
+  public static void addBackendServers(BackendServer server){
+    backendList.add(server);
+  }
+
+  /**  todo no changes needed?
    * Optional. Sets the API server. The API path is of the form http[s]://hostName/apiPath
    *
    * @param hostName The name of the API host, such as www.leanplum.com
@@ -144,7 +158,7 @@ public class Leanplum {
     APIConfig.getInstance().setApiConfig(hostName, apiPath, ssl);
   }
 
-  /**
+  /**  todo no changes needed?
    * Optional. Sets the socket server path for Development mode. Path is of the form hostName:port
    *
    * @param hostName The host name of the socket server.
@@ -167,7 +181,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Optional. Whether to enable file uploading in development mode.
    *
    * @param enabled Whether or not files should be uploaded. (Default: true)
@@ -176,7 +190,7 @@ public class Leanplum {
     Constants.enableFileUploadingInDevelopmentMode = enabled;
   }
 
-  /**
+  /** todo no changes needed?
    * Please use setLogLevel to enable logging.
    */
   @Deprecated
@@ -184,7 +198,7 @@ public class Leanplum {
     setLogLevel(Log.Level.DEBUG);
   }
 
-  /**
+  /** todo validate
    * Sets log level to one of the following
    * <ul>
    *   <li>{@link Log.Level#OFF} - disables logging.</li>
@@ -197,10 +211,24 @@ public class Leanplum {
    * @param level level to set
    */
   public static void setLogLevel(int level) {
-    Log.setLogLevel(level);
+    for (BackendServer s : backendList) {
+      switch (s) {
+        case CleverTap: {
+          if(level ==0) CleverTapAPI.setDebugLevel(CleverTapAPI.LogLevel.OFF);
+          if(level ==1) CleverTapAPI.setDebugLevel(CleverTapAPI.LogLevel.INFO);
+          if(level ==2) CleverTapAPI.setDebugLevel(CleverTapAPI.LogLevel.DEBUG);
+          if(level ==3) CleverTapAPI.setDebugLevel(CleverTapAPI.LogLevel.VERBOSE);
+          break;
+        }
+        case LeanPlum: {
+          Log.setLogLevel(level);
+          break;
+        }
+      }
+    }
   }
 
-  /**
+  /**  todo no changes needed?
    * Optional. Adjusts the network timeouts. The default timeout is 10 seconds for requests, and 15
    * seconds for file downloads.
    */
@@ -218,7 +246,7 @@ public class Leanplum {
     Constants.NETWORK_TIMEOUT_SECONDS_FOR_DOWNLOADS = downloadSeconds;
   }
 
-  /**
+  /**  todo validate
    * Must call either this or {@link Leanplum#setAppIdForProductionMode} before issuing any calls to
    * the API, including start.
    *
@@ -226,20 +254,10 @@ public class Leanplum {
    * @param accessKey Your development key.
    */
   public static void setAppIdForDevelopmentMode(String appId, String accessKey) {
-    if (TextUtils.isEmpty(appId)) {
-      Log.e("setAppIdForDevelopmentMode - Empty appId parameter provided.");
-      return;
-    }
-    if (TextUtils.isEmpty(accessKey)) {
-      Log.e("setAppIdForDevelopmentMode - Empty accessKey parameter provided.");
-      return;
-    }
-
-    Constants.isDevelopmentModeEnabled = true;
-    APIConfig.getInstance().setAppId(appId, accessKey);
+    setCredentials(appId,accessKey,getContext(),true);
   }
 
-  /**
+  /**  todo validate
    * Must call either this or {@link Leanplum#setAppIdForDevelopmentMode} before issuing any calls
    * to the API, including start.
    *
@@ -247,37 +265,25 @@ public class Leanplum {
    * @param accessKey Your production key.
    */
   public static void setAppIdForProductionMode(String appId, String accessKey) {
-    if (TextUtils.isEmpty(appId)) {
-      Log.e("setAppIdForProductionMode - Empty appId parameter provided.");
-      return;
-    }
-    if (TextUtils.isEmpty(accessKey)) {
-      Log.e("setAppIdForProductionMode - Empty accessKey parameter provided.");
-      return;
-    }
-
-    Constants.isDevelopmentModeEnabled = false;
-    APIConfig.getInstance().setAppId(appId, accessKey);
+    setCredentials(appId,accessKey,getContext(),false);
   }
 
-  /**
+  /** todo no changes needed?
    * Loads appId and accessKey from Android resources.
    */
   private static void loadApiConfigFromResources() {
     ApiConfigLoader loader = new ApiConfigLoader(getContext());
-    loader.loadFromResources(
-        Leanplum::setAppIdForProductionMode,
-        Leanplum::setAppIdForDevelopmentMode);
+    loader.loadFromResources(Leanplum::setAppIdForProductionMode, Leanplum::setAppIdForDevelopmentMode);
   }
 
-  /**
+  /** todo no changes needed? since its manual for ct?
    * Enable screen tracking.
    */
   public static void trackAllAppScreens() {
     LeanplumInternal.enableAutomaticScreenTracking();
   }
 
-  /**
+  /**  todo no changes needed?
    * Set this to true if you want details about the variable assignments
    * on the server.
    * Default is NO.
@@ -286,7 +292,7 @@ public class Leanplum {
     LeanplumInternal.setIsVariantDebugInfoEnabled(variantDebugInfoEnabled);
   }
 
-  /**
+  /**  todo no changes needed?
    * Whether screen tracking is enabled or not.
    *
    * @return Boolean - true if enabled
@@ -295,7 +301,7 @@ public class Leanplum {
     return LeanplumInternal.getIsScreenTrackingEnabled();
   }
 
-  /**
+  /**  todo no changes needed?
    * By default, Leanplum reports the version of your app using
    * getPackageManager().getPackageInfo, which can be used for reporting and targeting
    * on the Leanplum dashboard. If you wish to use any other string as the version,
@@ -305,7 +311,7 @@ public class Leanplum {
     customAppVersion = appVersion;
   }
 
-  /**
+  /**  todo no changes needed?
    * Sets the type of device ID to use. Default: {@link LeanplumDeviceIdMode#MD5_MAC_ADDRESS}
    */
   public static void setDeviceIdMode(LeanplumDeviceIdMode mode) {
@@ -318,7 +324,7 @@ public class Leanplum {
     userSpecifiedDeviceId = true;
   }
 
-  /**
+  /**  todo no changes needed?
    * (Advanced) Sets a custom device ID. Normally, you should use setDeviceIdMode to change the type
    * of device ID provided.
    */
@@ -331,7 +337,7 @@ public class Leanplum {
     userSpecifiedDeviceId = true;
   }
 
-  /**
+  /**  todo no changes needed?
    * Sets a custom locale. You should call this before {@link Leanplum#start}.
    */
   public static void setLocale(String locale) {
@@ -342,21 +348,17 @@ public class Leanplum {
     customLocale = locale;
   }
 
-  /**
+  /** todo doubt how to make it return clevertap user id?
    * Gets the deviceId in the current Leanplum session. This should only be called after
    * {@link Leanplum#start}.
    *
    * @return String Returns the deviceId in the current Leanplum session.
    */
   public static String getDeviceId() {
-    if (!LeanplumInternal.hasCalledStart()) {
-      Log.i("Leanplum.start() must be called before calling getDeviceId.");
-      return null;
-    }
-    return APIConfig.getInstance().deviceId();
+    return getDeviceId(BackendServer.LeanPlum);
   }
 
-  /**
+  /**  todo validate
    * Sets the application context. This should be the first call to Leanplum.
    */
   public static void setApplicationContext(Context context) {
@@ -364,10 +366,21 @@ public class Leanplum {
       Log.i("setApplicationContext - Null context parameter provided.");
     }
 
-    Leanplum.context = context;
+    for (BackendServer s : backendList) {
+      switch (s) {
+        case CleverTap: {
+          ActivityLifecycleCallback.register((Application) context);
+          break;
+        }
+        case LeanPlum: {
+          Leanplum.context = context;
+          break;
+        }
+      }
+    }
   }
 
-  /**
+  /**  todo no changes needed?
    * Gets the application context.
    */
   public static Context getContext() {
@@ -380,7 +393,7 @@ public class Leanplum {
     return context;
   }
 
-  /**
+  /**  todo no changes needed?
    * Syncs resources between Leanplum and the current app. You should only call this once, and
    * before {@link Leanplum#start}. syncResourcesAsync should be used instead unless file variables
    * need to be defined early
@@ -396,7 +409,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Syncs resources between Leanplum and the current app. You should only call this once, and
    * before {@link Leanplum#start}.
    */
@@ -411,7 +424,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Syncs resources between Leanplum and the current app. You should only call this once, and
    * before {@link Leanplum#start}. syncResourcesAsync should be used instead unless file variables
    * need to be defined early
@@ -432,7 +445,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Syncs resources between Leanplum and the current app. You should only call this once, and
    * before {@link Leanplum#start}. syncResourcesAsync should be used instead unless file variables
    * need to be defined early
@@ -453,14 +466,14 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Returns true if resource syncing is enabled. Resource syncing may not be fully initialized.
    */
   public static boolean isResourceSyncingEnabled() {
     return FileManager.isResourceSyncingEnabled();
   }
 
-  /**
+  /** todo no change needed?
    * Call this when your application starts. This will initiate a call to Leanplum's servers to get
    * the values of the variables used in your app.
    */
@@ -468,7 +481,7 @@ public class Leanplum {
     start(context, null, null, null, null);
   }
 
-  /**
+  /** todo no change needed?
    * Call this when your application starts. This will initiate a call to Leanplum's servers to get
    * the values of the variables used in your app.
    */
@@ -476,7 +489,7 @@ public class Leanplum {
     start(context, null, null, callback, null);
   }
 
-  /**
+  /** todo no change needed?
    * Call this when your application starts. This will initiate a call to Leanplum's servers to get
    * the values of the variables used in your app.
    */
@@ -484,7 +497,7 @@ public class Leanplum {
     start(context, null, userAttributes, null, null);
   }
 
-  /**
+  /** todo no change needed?
    * Call this when your application starts. This will initiate a call to Leanplum's servers to get
    * the values of the variables used in your app.
    */
@@ -492,7 +505,7 @@ public class Leanplum {
     start(context, userId, null, null, null);
   }
 
-  /**
+  /** todo no change needed?
    * Call this when your application starts. This will initiate a call to Leanplum's servers to get
    * the values of the variables used in your app.
    */
@@ -500,7 +513,7 @@ public class Leanplum {
     start(context, userId, null, callback, null);
   }
 
-  /**
+  /** todo no change needed?
    * Call this when your application starts. This will initiate a call to Leanplum's servers to get
    * the values of the variables used in your app.
    */
@@ -508,7 +521,7 @@ public class Leanplum {
     start(context, userId, userAttributes, null, null);
   }
 
-  /**
+  /** todo no change needed?
    * Call this when your application starts. This will initiate a call to Leanplum's servers to get
    * the values of the variables used in your app.
    */
@@ -517,115 +530,134 @@ public class Leanplum {
     start(context, userId, attributes, response, null);
   }
 
+  //todo validate
   static synchronized void start(final Context context, final String userId,
       final Map<String, ?> attributes, StartCallback response, final Boolean isBackground) {
     try {
-      boolean appIdNotSet = TextUtils.isEmpty(APIConfig.getInstance().appId());
-      if (appIdNotSet) {
-        loadApiConfigFromResources();
-      }
-
-      LeanplumActivityHelper.setCurrentActivity(context);
-
-      // Detect if app is in background automatically if isBackground is not set.
-      final boolean actuallyInBackground;
-      if (isBackground == null) {
-        actuallyInBackground = LeanplumActivityHelper.getCurrentActivity() == null ||
-            LeanplumActivityHelper.isActivityPaused();
-      } else {
-        actuallyInBackground = isBackground;
-      }
-
-      if (Constants.isNoop()) {
-        LeanplumInternal.setHasStarted(true);
-        LeanplumInternal.setStartSuccessful(true);
-        triggerStartResponse(true);
-        triggerVariablesChanged();
-        triggerVariablesChangedAndNoDownloadsPending();
-        VarCache.applyVariableDiffs(
-            new HashMap<>(),
-            new HashMap<>(),
-            new HashMap<>(),
-            new ArrayList<>(),
-            new ArrayList<>(),
-            new HashMap<>(),
-            "",
-            "");
-        LeanplumInbox.getInstance().update(new HashMap<>(), 0, false);
-        return;
-      }
-
-      if (response != null) {
-        addStartResponseHandler(response);
-      }
-
-      if (context != null) {
-        Leanplum.setApplicationContext(context.getApplicationContext());
-      }
-
-      if (LeanplumInternal.hasCalledStart()) {
-        if (!actuallyInBackground && LeanplumInternal.hasStartedInBackground()) {
-          // Move to foreground.
-          LeanplumInternal.setStartedInBackground(false);
-          LeanplumInternal.moveToForeground();
-        }
-        return;
-      }
-
-      MessageTemplates.register(Leanplum.getContext());
-
-      LeanplumInternal.setStartedInBackground(actuallyInBackground);
-
-      final Map<String, ?> validAttributes = LeanplumInternal.validateAttributes(attributes,
-          "userAttributes", true);
-      LeanplumInternal.setCalledStart(true);
-
-      if (validAttributes != null) {
-        LeanplumInternal.getUserAttributeChanges().add(validAttributes);
-      }
-
-      APIConfig.getInstance(); // load prefs
-      VarCache.setSilent(true);
-      VarCache.loadDiffs();
-      VarCache.setSilent(false);
-      LeanplumInbox.getInstance().load();
-
-      // Setup class members.
-      VarCache.onUpdate(new CacheUpdateBlock() {
-        @Override
-        public void updateCache() {
-          triggerVariablesChanged();
-          if (FileTransferManager.getInstance().numPendingDownloads() == 0) {
-            triggerVariablesChangedAndNoDownloadsPending();
-          }
-        }
-      });
-      FileTransferManager.getInstance().onNoPendingDownloads(
-          new FileTransferManager.NoPendingDownloadsCallback() {
-            @Override
-            public void noPendingDownloads() {
-              triggerVariablesChangedAndNoDownloadsPending();
+      for (BackendServer s : backendList) {
+        switch (s) {
+          case CleverTap: {
+            ActivityLifecycleCallback.register((Application) context.getApplicationContext());
+            if(ctInstanceConfig==null){
+              Log.e("ctInstanceConfig is not initialised so it will not be used and account credentials will be taken via manifest. ctInstanceConfig can be  initialised via Leanplum.setCredentials()");
+              cleverTapAPI = CleverTapAPI.getDefaultInstance(context);
             }
-      });
+            else {
+              cleverTapAPI = CleverTapAPI.instanceWithConfig(context,ctInstanceConfig);
+            }
+            break;
+          }
+          case LeanPlum: {
 
-      // Reduce latency by running the rest of the start call in a background thread.
-      OperationQueue.sharedInstance().addParallelOperation(new Runnable() {
-        @Override
-        public void run() {
-          try {
-            startHelper(userId, validAttributes, actuallyInBackground);
-          } catch (Throwable t) {
-            Log.exception(t);
+            boolean appIdNotSet = TextUtils.isEmpty(APIConfig.getInstance().appId());
+            if (appIdNotSet) {
+              loadApiConfigFromResources();
+            }
+
+            LeanplumActivityHelper.setCurrentActivity(context);
+
+            // Detect if app is in background automatically if isBackground is not set.
+            final boolean actuallyInBackground;
+            if (isBackground == null) {
+              actuallyInBackground = LeanplumActivityHelper.getCurrentActivity() == null ||
+                      LeanplumActivityHelper.isActivityPaused();
+            } else {
+              actuallyInBackground = isBackground;
+            }
+
+            if (Constants.isNoop()) {
+              LeanplumInternal.setHasStarted(true);
+              LeanplumInternal.setStartSuccessful(true);
+              triggerStartResponse(true);
+              triggerVariablesChanged();
+              triggerVariablesChangedAndNoDownloadsPending();
+              VarCache.applyVariableDiffs(
+                      new HashMap<>(),
+                      new HashMap<>(),
+                      new HashMap<>(),
+                      new ArrayList<>(),
+                      new ArrayList<>(),
+                      new HashMap<>(),
+                      "",
+                      "");
+              LeanplumInbox.getInstance().update(new HashMap<>(), 0, false);
+              return;
+            }
+
+            if (response != null) {
+              addStartResponseHandler(response);
+            }
+
+            if (context != null) {
+              Leanplum.setApplicationContext(context.getApplicationContext());
+            }
+
+            if (LeanplumInternal.hasCalledStart()) {
+              if (!actuallyInBackground && LeanplumInternal.hasStartedInBackground()) {
+                // Move to foreground.
+                LeanplumInternal.setStartedInBackground(false);
+                LeanplumInternal.moveToForeground();
+              }
+              return;
+            }
+
+            MessageTemplates.register(Leanplum.getContext());
+
+            LeanplumInternal.setStartedInBackground(actuallyInBackground);
+
+            final Map<String, ?> validAttributes = LeanplumInternal.validateAttributes(attributes, "userAttributes", true);
+            LeanplumInternal.setCalledStart(true);
+
+            if (validAttributes != null) {
+              LeanplumInternal.getUserAttributeChanges().add(validAttributes);
+            }
+
+            APIConfig.getInstance(); // load prefs
+            VarCache.setSilent(true);
+            VarCache.loadDiffs();
+            VarCache.setSilent(false);
+            LeanplumInbox.getInstance().load();
+
+            // Setup class members.
+            VarCache.onUpdate(new CacheUpdateBlock() {
+              @Override
+              public void updateCache() {
+                triggerVariablesChanged();
+                if (FileTransferManager.getInstance().numPendingDownloads() == 0) {
+                  triggerVariablesChangedAndNoDownloadsPending();
+                }
+              }
+            });
+            FileTransferManager.getInstance().onNoPendingDownloads(new FileTransferManager.NoPendingDownloadsCallback() {
+              @Override
+              public void noPendingDownloads() {
+                triggerVariablesChangedAndNoDownloadsPending();
+              }
+            });
+
+            // Reduce latency by running the rest of the start call in a background thread.
+            OperationQueue.sharedInstance().addParallelOperation(new Runnable() {
+              @Override
+              public void run() {
+                try {
+                  startHelper(userId, validAttributes, actuallyInBackground);
+                } catch (Throwable t) {
+                  Log.exception(t);
+                }
+              }
+            });
+            Util.initExceptionHandling(context);
+
+            break;
           }
         }
-      });
-      Util.initExceptionHandling(context);
+      }
     } catch (Throwable t) {
       Log.exception(t);
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Checks for leanplum notifications modules and if someone present - invoke onStart method.
    */
   private static void checkAndStartNotificationsModules() {
@@ -639,7 +671,7 @@ public class Leanplum {
       // ignored
     }
   }
-
+  // todo no changes needed?
   private static void startHelper(
       String userId, final Map<String, ?> attributes, final boolean isBackground) {
     LeanplumEventDataManager.sharedInstance();
@@ -764,7 +796,7 @@ public class Leanplum {
 
     LeanplumInternal.triggerStartIssued();
   }
-
+  // todo no changes needed?
   private static void handleStartResponse(final JSONObject response) {
     boolean success = RequestUtil.isResponseSuccess(response);
     if (!success) {
@@ -947,7 +979,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Applies the variables, messages, or update rules in a start or getVars response.
    *
    * @param response The response containing content.
@@ -980,7 +1012,7 @@ public class Leanplum {
         varsSignature);
   }
 
-  /**
+  /**  todo no changes needed?
    * Used by wrapper SDKs like Unity to override the SDK client name and version.
    */
   static void setClient(String client, String sdkVersion, String defaultDeviceId) {
@@ -989,34 +1021,45 @@ public class Leanplum {
     Constants.defaultDeviceId = defaultDeviceId;
   }
 
-  /**
+  /** todo validate
    * Call this when your activity pauses. This is called from LeanplumActivityHelper.
    */
   static void pause() {
-    if (Constants.isNoop()) {
-      return;
-    }
-    if (!LeanplumInternal.hasCalledStart()) {
-      Log.e("You cannot call pause before calling start");
-      return;
-    }
-
-    if (LeanplumInternal.issuedStart()) {
-      pauseInternal();
-    } else {
-      LeanplumInternal.addStartIssuedHandler(new Runnable() {
-        @Override
-        public void run() {
-          try {
-            pauseInternal();
-          } catch (Throwable t) {
-            Log.exception(t);
-          }
+    for(BackendServer b:backendList){
+      switch (b){
+        case CleverTap: {
+          CleverTapAPI.onActivityPaused();
+          break;
         }
-      });
+        case LeanPlum: {
+          if (Constants.isNoop()) {
+            return;
+          }
+          if (!LeanplumInternal.hasCalledStart()) {
+            Log.e("You cannot call pause before calling start");
+            return;
+          }
+
+          if (LeanplumInternal.issuedStart()) {
+            pauseInternal();
+          } else {
+            LeanplumInternal.addStartIssuedHandler(new Runnable() {
+              @Override
+              public void run() {
+                try {
+                  pauseInternal();
+                } catch (Throwable t) {
+                  Log.exception(t);
+                }
+              }
+            });
+          }
+          break;
+        }
+      }
     }
   }
-
+  //  todo no changes needed?
   private static void pauseInternal() {
     Request request = RequestBuilder
         .withPauseSessionAction()
@@ -1027,31 +1070,42 @@ public class Leanplum {
     LeanplumInternal.setIsPaused(true);
   }
 
-  /**
+  /** todo validate
    * Call this when your activity resumes. This is called from LeanplumActivityHelper.
    */
   static void resume() {
-    if (Constants.isNoop()) {
-      return;
-    }
-    if (!LeanplumInternal.hasCalledStart()) {
-      Log.e("You cannot call resume before calling start");
-      return;
-    }
-
-    if (LeanplumInternal.issuedStart()) {
-      resumeInternal();
-    } else {
-      LeanplumInternal.addStartIssuedHandler(new Runnable() {
-        @Override
-        public void run() {
-          try {
-            resumeInternal();
-          } catch (Throwable t) {
-            Log.exception(t);
-          }
+    for(BackendServer b:backendList){
+      switch (b){
+        case CleverTap: {
+          //CleverTapAPI.onActivityResumed(getContext());
+          break;
         }
-      });
+        case LeanPlum: {
+          if (Constants.isNoop()) {
+            return;
+          }
+          if (!LeanplumInternal.hasCalledStart()) {
+            Log.e("You cannot call resume before calling start");
+            return;
+          }
+
+          if (LeanplumInternal.issuedStart()) {
+            resumeInternal();
+          } else {
+            LeanplumInternal.addStartIssuedHandler(new Runnable() {
+              @Override
+              public void run() {
+                try {
+                  resumeInternal();
+                } catch (Throwable t) {
+                  Log.exception(t);
+                }
+              }
+            });
+          }
+          break;
+        }
+      }
     }
   }
 
@@ -1072,19 +1126,22 @@ public class Leanplum {
     LeanplumInternal.setIsPaused(false);
   }
 
+  // todo no changes needed?
   private static void startRequestTimer() {
     RequestSenderTimer.get().start();
   }
 
+  // todo no changes needed?
   private static void stopRequestTimer() {
     RequestSenderTimer.get().stop();
   }
 
-  /**
+  /**  todo no changes needed?
    * Call this to explicitly end the session. This should not be used in most cases, so we won't
    * make it public for now.
    */
   static void stop() {
+
     if (Constants.isNoop()) {
       return;
     }
@@ -1109,19 +1166,20 @@ public class Leanplum {
     }
   }
 
+  // todo no changes needed?
   private static void stopInternal() {
     Request request = RequestBuilder.withStopAction().andType(RequestType.IMMEDIATE).create();
     RequestSender.getInstance().send(request);
   }
 
-  /**
+  /**  todo no changes needed?
    * Whether or not Leanplum has finished starting.
    */
   public static boolean hasStarted() {
     return LeanplumInternal.hasStarted();
   }
 
-  /**
+  /**  todo no changes needed?
    * Returns the userId in the current Leanplum session. This should only be called after
    * Leanplum.start().
    */
@@ -1134,21 +1192,21 @@ public class Leanplum {
     return null;
   }
 
-  /**
+  /**  todo no changes needed?
    * Returns an instance to the singleton LeanplumInbox object.
    */
   public static LeanplumInbox getInbox() {
     return LeanplumInbox.getInstance();
   }
 
-  /**
+  /**  todo no changes needed?
    * Whether or not Leanplum has finished starting and the device is registered as a developer.
    */
   public static boolean hasStartedAndRegisteredAsDeveloper() {
     return LeanplumInternal.hasStartedAndRegisteredAsDeveloper();
   }
 
-  /**
+  /**  todo no changes needed?
    * Add a callback for when the start call finishes, and variables are returned back from the
    * server.
    */
@@ -1172,7 +1230,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Removes a start response callback.
    */
   public static void removeStartResponseHandler(StartCallback handler) {
@@ -1186,6 +1244,7 @@ public class Leanplum {
     }
   }
 
+  //  todo no changes needed?
   private static void triggerStartResponse(boolean success) {
     synchronized (startHandlers) {
       for (StartCallback callback : startHandlers) {
@@ -1196,7 +1255,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Add a callback for when the variables receive new values from the server. This will be called
    * on start, and also later on if the user is in an experiment that can updated in realtime.
    */
@@ -1214,7 +1273,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Removes a variables changed callback.
    */
   public static void removeVariablesChangedHandler(VariablesChangedCallback handler) {
@@ -1228,6 +1287,7 @@ public class Leanplum {
     }
   }
 
+  //  todo no changes needed?
   private static void triggerVariablesChanged() {
     synchronized (variablesChangedHandlers) {
       for (VariablesChangedCallback callback : variablesChangedHandlers) {
@@ -1236,7 +1296,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Add a callback for when no more file downloads are pending (either when no files needed to be
    * downloaded or all downloads have been completed).
    */
@@ -1257,7 +1317,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Removes a variables changed and no downloads pending callback.
    */
   public static void removeVariablesChangedAndNoDownloadsPendingHandler(
@@ -1273,7 +1333,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Add a callback for when a message is displayed.
    */
   public static void addMessageDisplayedHandler(
@@ -1289,7 +1349,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Removes a variables changed and no downloads pending callback.
    */
   public static void removeMessageDisplayedHandler(
@@ -1305,6 +1365,7 @@ public class Leanplum {
     }
   }
 
+  //  todo no changes needed?
   public static void triggerMessageDisplayed(ActionContext actionContext) {
     synchronized (messageDisplayedHandlers) {
       for (MessageDisplayedCallback callback : messageDisplayedHandlers) {
@@ -1315,6 +1376,7 @@ public class Leanplum {
     }
   }
 
+  //  todo no changes needed?
   private static MessageArchiveData messageArchiveDataFromContext(ActionContext actionContext) {
     String messageID = actionContext.getMessageId();
     String messageBody = "";
@@ -1329,7 +1391,7 @@ public class Leanplum {
     return new MessageArchiveData(messageID, messageBody, recipientUserID, deliveryDateTime);
   }
 
-  @VisibleForTesting
+  @VisibleForTesting//  todo no changes needed?
   public static String messageBodyFromContext(ActionContext actionContext) {
     Object messageObject =  actionContext.getArgs().get("Message");
     if (messageObject == null) {
@@ -1352,7 +1414,7 @@ public class Leanplum {
     return null;
   }
 
-  /**
+  /**  todo no changes needed?
    * Add a callback to call ONCE when no more file downloads are pending (either when no files
    * needed to be downloaded or all downloads have been completed).
    */
@@ -1374,7 +1436,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Removes a once variables changed and no downloads pending callback.
    */
   public static void removeOnceVariablesChangedAndNoDownloadsPendingHandler(
@@ -1390,6 +1452,7 @@ public class Leanplum {
     }
   }
 
+  //  todo no changes needed?
   static void triggerVariablesChangedAndNoDownloadsPending() {
     synchronized (noDownloadsHandlers) {
       for (VariablesChangedCallback callback : noDownloadsHandlers) {
@@ -1404,7 +1467,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Defines an action that is used within Leanplum Marketing Automation. Actions can be set up to
    * get triggered based on app opens, events, and states. Call {@link Leanplum#onAction} to handle
    * the action.
@@ -1417,7 +1480,7 @@ public class Leanplum {
     defineAction(name, kind, args, null, null);
   }
 
-  /**
+  /**  todo no changes needed?
    * Defines an action that is used within Leanplum Marketing Automation. Actions can be set up to
    * get triggered based on app opens, events, and states.
    *
@@ -1457,7 +1520,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /**  todo no changes needed?
    * Adds a callback that handles an action with the given name.
    *
    * @param actionName The name of the type of action to handle.
@@ -1481,48 +1544,60 @@ public class Leanplum {
     handlers.add(handler);
   }
 
-  /**
+  /** todo validate
    * Updates the user ID and adds or modifies user attributes.
    */
   public static void setUserAttributes(final String userId, Map<String, ?> userAttributes) {
-    if (Constants.isNoop()) {
-      return;
-    }
-    if (!LeanplumInternal.hasCalledStart()) {
-      Log.e("You cannot call setUserAttributes before calling start");
-      return;
-    }
-    try {
-      final HashMap<String, Object> params = new HashMap<>();
-      if (userId != null) {
-        params.put(Constants.Params.NEW_USER_ID, userId);
-      }
-      if (userAttributes != null) {
-        userAttributes = LeanplumInternal.validateAttributes(userAttributes, "userAttributes",
-            true);
-        params.put(Constants.Params.USER_ATTRIBUTES, JsonConverter.toJson(userAttributes));
-        LeanplumInternal.getUserAttributeChanges().add(userAttributes);
-      }
-
-      if (LeanplumInternal.issuedStart()) {
-        setUserAttributesInternal(userId, params);
-      } else {
-        LeanplumInternal.addStartIssuedHandler(new Runnable() {
-          @Override
-          public void run() {
-            try {
-              setUserAttributesInternal(userId, params);
-            } catch (Throwable t) {
-              Log.exception(t);
-            }
+    for(BackendServer b: backendList){
+      switch (b){
+        case CleverTap:{
+          cleverTapAPI.pushProfile((Map<String, Object>) userAttributes);
+          break;
+        }
+        case LeanPlum:{
+          if (Constants.isNoop()) {
+            return;
           }
-        });
+          if (!LeanplumInternal.hasCalledStart()) {
+            Log.e("You cannot call setUserAttributes before calling start");
+            return;
+          }
+          try {
+            final HashMap<String, Object> params = new HashMap<>();
+            if (userId != null) {
+              params.put(Constants.Params.NEW_USER_ID, userId);
+            }
+            if (userAttributes != null) {
+              userAttributes = LeanplumInternal.validateAttributes(userAttributes, "userAttributes",
+                      true);
+              params.put(Constants.Params.USER_ATTRIBUTES, JsonConverter.toJson(userAttributes));
+              LeanplumInternal.getUserAttributeChanges().add(userAttributes);
+            }
+
+            if (LeanplumInternal.issuedStart()) {
+              setUserAttributesInternal(userId, params);
+            } else {
+              LeanplumInternal.addStartIssuedHandler(new Runnable() {
+                @Override
+                public void run() {
+                  try {
+                    setUserAttributesInternal(userId, params);
+                  } catch (Throwable t) {
+                    Log.exception(t);
+                  }
+                }
+              });
+            }
+          } catch (Throwable t) {
+            Log.exception(t);
+          }
+          break;
+        }
       }
-    } catch (Throwable t) {
-      Log.exception(t);
     }
   }
 
+  //  todo no changes needed?
   private static void setUserAttributesInternal(String userId,
       HashMap<String, Object> requestArgs) {
     Request request = RequestBuilder.withSetUserAttributesAction().andParams(requestArgs).create();
@@ -1560,49 +1635,74 @@ public class Leanplum {
     setUserAttributes(null, userAttributes);
   }
 
-  /**
+  /** //todo validate : token refresh is restricted
    * Sets the registration ID used for Cloud Messaging.
    */
+  @SuppressLint("RestrictedApi")
   static void setRegistrationId(PushProviderType type, final String registrationId) {
-    if (Constants.isNoop()) {
-      return;
-    }
-    String attributeName;
-    switch (type) {
-      case FCM:
-        attributeName = Constants.Params.DEVICE_FCM_PUSH_TOKEN;
-        break;
-      case MIPUSH:
-        attributeName = Constants.Params.DEVICE_MIPUSH_TOKEN;
-        break;
-      case HMS:
-        attributeName = Constants.Params.DEVICE_HMS_TOKEN;
-        break;
-      default:
-        return;
-    }
-    Runnable startIssuedHandler = new Runnable() {
-      @Override
-      public void run() {
-        if (Constants.isNoop()) {
-          return;
+    for(BackendServer b: backendList){
+      switch (b){
+        case CleverTap:{
+          Context context = getContext();
+          switch (type){
+            case FCM:
+              CleverTapAPI.tokenRefresh(context,registrationId, PushConstants.PushType.FCM);
+              break;
+            case MIPUSH:
+              CleverTapAPI.tokenRefresh(context,registrationId, PushConstants.PushType.XPS);
+              break;
+            case HMS:
+              CleverTapAPI.tokenRefresh(context,registrationId, PushConstants.PushType.HPS);
+              break;
+          }
+          break;
         }
-        try {
-          Request request = RequestBuilder
-              .withSetDeviceAttributesAction()
-              .andParam(attributeName, registrationId)
-              .andType(RequestType.IMMEDIATE)
-              .create();
-          RequestSender.getInstance().send(request);
-        } catch (Throwable t) {
-          Log.exception(t);
+        case LeanPlum:{
+          if (Constants.isNoop()) {
+            return;
+          }
+          String attributeName;
+          switch (type) {
+            case FCM:
+              attributeName = Constants.Params.DEVICE_FCM_PUSH_TOKEN;
+              break;
+            case MIPUSH:
+              attributeName = Constants.Params.DEVICE_MIPUSH_TOKEN;
+              break;
+            case HMS:
+              attributeName = Constants.Params.DEVICE_HMS_TOKEN;
+              break;
+            default:
+              return;
+          }
+          Runnable startIssuedHandler = new Runnable() {
+            @Override
+            public void run() {
+              if (Constants.isNoop()) {
+                return;
+              }
+              try {
+                Request request = RequestBuilder
+                        .withSetDeviceAttributesAction()
+                        .andParam(attributeName, registrationId)
+                        .andType(RequestType.IMMEDIATE)
+                        .create();
+                RequestSender.getInstance().send(request);
+              } catch (Throwable t) {
+                Log.exception(t);
+              }
+            }
+          };
+          LeanplumInternal.addStartIssuedHandler(startIssuedHandler);
+          break;
         }
       }
-    };
-    LeanplumInternal.addStartIssuedHandler(startIssuedHandler);
+    }
+
+
   }
 
-  /**
+  /**  todo no changes needed?
    * Sets the traffic source info for the current user. Keys in info must be one of: publisherId,
    * publisherName, publisherSubPublisher, publisherSubSite, publisherSubCampaign,
    * publisherSubAdGroup, publisherSubAd.
@@ -1642,13 +1742,13 @@ public class Leanplum {
       Log.exception(t);
     }
   }
-
+  //  todo no changes needed?
   private static void setTrafficSourceInfoInternal(HashMap<String, Object> params) {
     Request requets = RequestBuilder.withSetTrafficSourceInfoAction().andParams(params).create();
     RequestSender.getInstance().send(requets);
   }
 
-  /**
+  /** todo validate
    * Logs a particular event in your application. The string can be any value of your choosing, and
    * will show up in the dashboard.
    * <p>
@@ -1665,12 +1765,20 @@ public class Leanplum {
    * @param params Key-value pairs with metrics or data associated with the event. Parameters can be
    * strings or numbers. You can use up to 200 different parameter names in your app.
    */
-  public static void track(final String event, double value, String info,
-      Map<String, ?> params) {
-    LeanplumInternal.track(event, value, info, params, null);
+  public static void track(final String event, double value, String info, Map<String, ?> params) {
+    for(BackendServer b : backendList){
+      switch (b){
+        case CleverTap:
+          cleverTapAPI.pushEvent(event, (Map<String, Object>) params);
+          break;
+        case LeanPlum:
+          LeanplumInternal.track(event, value, info, params, null);
+          break;
+      }
+    }
   }
 
-  /**
+  /** todo validate
    * Manually track purchase event with currency code in your application. It is advised to use
    * {@link Leanplum#trackGooglePlayPurchase} instead for in-app purchases.
    *
@@ -1685,20 +1793,37 @@ public class Leanplum {
     try {
       if (TextUtils.isEmpty(event)) {
         Log.i("Failed to trackPurchase, event name is null");
+        return;
       }
 
-      final Map<String, String> requestArgs = new HashMap<>();
-      if (!TextUtils.isEmpty(currencyCode)) {
-        requestArgs.put(Constants.Params.IAP_CURRENCY_CODE, currencyCode);
+      for (BackendServer b : backendList) {
+        switch (b) {
+          case CleverTap: {
+            HashMap<String,Object> chargeDetails =  new HashMap<>();
+            chargeDetails.put("name",event);
+            chargeDetails.put("value",value);
+            chargeDetails.put("currencyCode",currencyCode);
+            ArrayList<HashMap<String,Object>> items = new ArrayList<>();
+            items.add((HashMap<String, Object>) params);
+            cleverTapAPI.pushChargedEvent(chargeDetails,items);
+            break;
+          }
+          case LeanPlum: {
+            final Map<String, String> requestArgs = new HashMap<>();
+            if (!TextUtils.isEmpty(currencyCode)) {
+              requestArgs.put(Constants.Params.IAP_CURRENCY_CODE, currencyCode);
+            }
+            LeanplumInternal.track(event, value, null, params, requestArgs);
+            break;
+          }
+        }
       }
-
-      LeanplumInternal.track(event, value, null, params, requestArgs);
     } catch (Throwable t) {
       Log.exception(t);
     }
   }
 
-  /**
+  /** todo no changes needed?
    * Tracks an in-app purchase as a Purchase event.
    *
    * @param item The name of the item that was purchased.
@@ -1713,7 +1838,7 @@ public class Leanplum {
         dataSignature, null);
   }
 
-  /**
+  /** todo no changes needed?
    * Tracks an in-app purchase as a Purchase event.
    *
    * @param item The name of the item that was purchased.
@@ -1729,7 +1854,7 @@ public class Leanplum {
         purchaseData, dataSignature, params);
   }
 
-  /**
+  /** todo validate
    * Tracks an in-app purchase.
    *
    * @param eventName The name of the event to record the purchase under. Normally, this would be
@@ -1748,23 +1873,44 @@ public class Leanplum {
       Log.i("Failed to trackGooglePlayPurchase, event name is null");
     }
 
-    final Map<String, String> requestArgs = new HashMap<>();
-    requestArgs.put(Constants.Params.GOOGLE_PLAY_PURCHASE_DATA, purchaseData);
-    requestArgs.put(Constants.Params.GOOGLE_PLAY_PURCHASE_DATA_SIGNATURE, dataSignature);
-    requestArgs.put(Constants.Params.IAP_CURRENCY_CODE, currencyCode);
+    for (BackendServer b : backendList) {
+      switch (b) {
+        case CleverTap: {
+          HashMap<String,Object> chargeDetails =  new HashMap<>();
+          chargeDetails.put("name",eventName);
+          chargeDetails.put("item",item);
+          chargeDetails.put("priceMicros",priceMicros);
+          chargeDetails.put(Constants.Params.IAP_CURRENCY_CODE,currencyCode);
+          chargeDetails.put(Constants.Params.GOOGLE_PLAY_PURCHASE_DATA,purchaseData);
+          chargeDetails.put(Constants.Params.GOOGLE_PLAY_PURCHASE_DATA_SIGNATURE,dataSignature);
+          ArrayList<HashMap<String,Object>> items = new ArrayList<>();
+          items.add((HashMap<String, Object>) params);
+          cleverTapAPI.pushChargedEvent(chargeDetails,items);
+          break;
+        }
+        case LeanPlum: {
+          final Map<String, String> requestArgs = new HashMap<>();
+          requestArgs.put(Constants.Params.GOOGLE_PLAY_PURCHASE_DATA, purchaseData);
+          requestArgs.put(Constants.Params.GOOGLE_PLAY_PURCHASE_DATA_SIGNATURE, dataSignature);
+          requestArgs.put(Constants.Params.IAP_CURRENCY_CODE, currencyCode);
 
-    Map<String, Object> modifiedParams;
-    if (params == null) {
-      modifiedParams = new HashMap<>();
-    } else {
-      modifiedParams = new HashMap<>(params);
+          Map<String, Object> modifiedParams;
+          if (params == null) {
+            modifiedParams = new HashMap<>();
+          } else {
+            modifiedParams = new HashMap<>(params);
+          }
+          modifiedParams.put(Constants.Params.IAP_ITEM, item);
+
+          LeanplumInternal.track(eventName, priceMicros / 1000000.0, null, modifiedParams, requestArgs);
+
+          break;
+        }
+      }
     }
-    modifiedParams.put(Constants.Params.IAP_ITEM, item);
-
-    LeanplumInternal.track(eventName, priceMicros / 1000000.0, null, modifiedParams, requestArgs);
   }
 
-  /**
+  /** todo no changes needed?
    * Logs a particular event in your application. The string can be any value of your choosing, and
    * will show up in the dashboard.
    * <p>
@@ -1776,7 +1922,7 @@ public class Leanplum {
     track(event, 0.0, "", null);
   }
 
-  /**
+  /** todo no changes needed?
    * Logs a particular event in your application. The string can be any value of your choosing, and
    * will show up in the dashboard.
    * <p>
@@ -1791,7 +1937,7 @@ public class Leanplum {
     track(event, value, "", null);
   }
 
-  /**
+  /** todo no changes needed?
    * Logs a particular event in your application. The string can be any value of your choosing, and
    * will show up in the dashboard.
    * <p>
@@ -1805,7 +1951,7 @@ public class Leanplum {
     track(event, 0.0, info, null);
   }
 
-  /**
+  /** todo no changes needed?
    * Logs a particular event in your application. The string can be any value of your choosing, and
    * will show up in the dashboard.
    * <p>
@@ -1819,7 +1965,7 @@ public class Leanplum {
     track(event, 0.0, "", params);
   }
 
-  /**
+  /** todo no changes needed?
    * Logs a particular event in your application. The string can be any value of your choosing, and
    * will show up in the dashboard.
    * <p>
@@ -1836,7 +1982,7 @@ public class Leanplum {
     track(event, value, "", params);
   }
 
-  /**
+  /** todo no changes needed?
    * Logs a particular event in your application. The string can be any value of your choosing, and
    * will show up in the dashboard.
    * <p>
@@ -1853,7 +1999,7 @@ public class Leanplum {
     track(event, value, info, null);
   }
 
-  /**
+  /** todo ct uses automatic tracking?
    * Advances to a particular state in your application. The string can be any value of your
    * choosing, and will show up in the dashboard. A state is a section of your app that the user is
    * currently in.
@@ -1868,7 +2014,7 @@ public class Leanplum {
       LeanplumInternal.trackGeofence(event, 0.0, info, null, null);
     }
   }
-
+  // todo no changes needed?
   public static void advanceTo(final String state, String info, final Map<String, ?> params) {
     if (Constants.isNoop()) {
       return;
@@ -1909,7 +2055,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /** todo no changes needed?
    * Performs the advance API and any actions that are associated with the state.
    *
    * @param state The state name. State may be empty for message impression events.
@@ -1928,7 +2074,7 @@ public class Leanplum {
         LeanplumMessageMatchFilter.LEANPLUM_ACTION_FILTER_ALL, null, contextualValues);
   }
 
-  /**
+  /** todo no changes needed?
    * Advances to a particular state in your application. The string can be any value of your
    * choosing, and will show up in the dashboard. A state is a section of your app that the user is
    * currently in.
@@ -1939,7 +2085,7 @@ public class Leanplum {
     advanceTo(state, "", null);
   }
 
-  /**
+  /** todo no changes needed?
    * Advances to a particular state in your application. The string can be any value of your
    * choosing, and will show up in the dashboard. A state is a section of your app that the user is
    * currently in.
@@ -1952,7 +2098,7 @@ public class Leanplum {
     advanceTo(state, info, null);
   }
 
-  /**
+  /** todo no changes needed?
    * Advances to a particular state in your application. The string can be any value of your
    * choosing, and will show up in the dashboard. A state is a section of your app that the user is
    * currently in.
@@ -1965,7 +2111,7 @@ public class Leanplum {
     advanceTo(state, "", params);
   }
 
-  /**
+  /** todo no changes needed?
    * Pauses the current state. You can use this if your game has a "pause" mode. You shouldn't call
    * it when someone switches out of your app because that's done automatically.
    */
@@ -1997,13 +2143,13 @@ public class Leanplum {
       Log.exception(t);
     }
   }
-
+  // todo no changes needed?
   private static void pauseStateInternal() {
     Request request = RequestBuilder.withPauseStateAction().create();
     RequestSender.getInstance().send(request);
   }
 
-  /**
+  /** todo no changes needed?
    * Resumes the current state.
    */
   public static void resumeState() {
@@ -2034,13 +2180,13 @@ public class Leanplum {
       Log.exception(t);
     }
   }
-
+  // todo no changes needed?
   private static void resumeStateInternal() {
     Request request = RequestBuilder.withResumeStateAction().create();
     RequestSender.getInstance().send(request);
   }
 
-  /**
+  /** todo no changes needed?
    * Forces content to update from the server. If variables have changed, the appropriate callbacks
    * will fire. Use sparingly as if the app is updated, you'll have to deal with potentially
    * inconsistent state or user experience.
@@ -2049,7 +2195,7 @@ public class Leanplum {
     forceContentUpdate(success -> {});
   }
 
-  /**
+  /** todo no changes needed?
    * Forces content to update from the server. If variables have changed, the appropriate callbacks
    * will fire. Use sparingly as if the app is updated, you'll have to deal with potentially
    * inconsistent state or user experience.
@@ -2065,7 +2211,7 @@ public class Leanplum {
     });
   }
 
-  /**
+  /** todo no changes needed?
    * Forces content to update from the server. If variables have changed, the appropriate callbacks
    * will fire. Use sparingly as if the app is updated, you'll have to deal with potentially
    * inconsistent state or user experience.
@@ -2127,7 +2273,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /** todo no changes needed?
    * This should be your first statement in a unit test. This prevents Leanplum from communicating
    * with the server.
    */
@@ -2139,7 +2285,7 @@ public class Leanplum {
     return Constants.isTestMode;
   }
 
-  /**
+  /** todo no changes needed?
    * This should be your first statement in a unit test. This prevents Leanplum from communicating
    * with the server.
    */
@@ -2147,7 +2293,7 @@ public class Leanplum {
     Constants.isTestMode = isTestModeEnabled;
   }
 
-  /**
+  /** todo no changes needed?
    * Gets the path for a particular resource. The resource can be overridden by the server.
    */
   public static String pathForResource(String filename) {
@@ -2160,7 +2306,7 @@ public class Leanplum {
     return (fileVar != null) ? fileVar.fileValue() : null;
   }
 
-  /**
+  /** todo no changes needed?
    * Traverses the variable structure with the specified path. Path components can be either strings
    * representing keys in a dictionary, or integers representing indices in a list.
    */
@@ -2168,7 +2314,7 @@ public class Leanplum {
     return objectForKeyPathComponents(components);
   }
 
-  /**
+  /** todo no changes needed?
    * Traverses the variable structure with the specified path. Path components can be either strings
    * representing keys in a dictionary, or integers representing indices in a list.
    */
@@ -2181,7 +2327,7 @@ public class Leanplum {
     return null;
   }
 
-  /**
+  /** todo no changes needed?
    * Returns information about the active variants for the current user. Each variant will contain
    * an "id" key mapping to the numeric ID of the variant.
    */
@@ -2193,7 +2339,7 @@ public class Leanplum {
     return variants;
   }
 
-  /**
+  /** todo no changes needed?
    * Returns the last received signed variables. If signature was not provided from server the
    * result of this method will be null.
    *
@@ -2205,7 +2351,7 @@ public class Leanplum {
     return VarCache.getSecuredVars();
   }
 
-  /**
+  /** todo no changes needed?
    * Returns metadata for all active in-app messages. Recommended only for debugging purposes and
    * advanced use cases.
    */
@@ -2217,14 +2363,14 @@ public class Leanplum {
     return messages;
   }
 
-  /**
+  /** todo no changes needed?
    * Details about the variable assignments on the server.
    */
   public static Map<String, Object> getVariantDebugInfo() {
     return VarCache.getVariantDebugInfo();
   }
 
-  /**
+  /** todo no changes needed? ct uses automatic location?
    * Set location manually. Calls setDeviceLocation with cell type. Best if used in after calling
    * disableLocationCollection.
    *
@@ -2234,7 +2380,7 @@ public class Leanplum {
     setDeviceLocation(location, LeanplumLocationAccuracyType.CELL);
   }
 
-  /**
+  /** todo no changes needed? ct uses automatic location?
    * Set location manually. Best if used in after calling disableLocationCollection. Useful if you
    * want to apply additional logic before sending in the location.
    *
@@ -2258,14 +2404,14 @@ public class Leanplum {
         });
   }
 
-  /**
+  /** todo no changes needed? ct uses automatic location?
    * Disable location collection by setting |locationCollectionEnabled| to false.
    */
   public static void disableLocationCollection() {
     locationCollectionEnabled = false;
   }
 
-  /**
+  /** todo no changes needed? ct uses automatic location?
    * Returns whether a customer enabled location collection.
    *
    * @return The value of |locationCollectionEnabled|.
@@ -2274,6 +2420,7 @@ public class Leanplum {
     return locationCollectionEnabled;
   }
 
+  // todo no changes needed?
   private static void parseVariantDebugInfo(JSONObject response) {
     Map<String, Object> variantDebugInfo = JsonConverter.mapFromJsonOrDefault(
             response.optJSONObject(Constants.Keys.VARIANT_DEBUG_INFO));
@@ -2282,7 +2429,7 @@ public class Leanplum {
     }
   }
 
-  /**
+  /** todo no changes needed?
    * Clears cached values for messages, variables and test assignments.
    * Use sparingly as if the app is updated, you'll have to deal with potentially
    * inconsistent state or user experience.
@@ -2291,7 +2438,7 @@ public class Leanplum {
     VarCache.clearUserContent();
   }
 
-  @VisibleForTesting
+  @VisibleForTesting// todo no changes needed?
   public static Set<String> parseSdkCounters(JSONObject response) {
     JSONArray enabledCounters = response.optJSONArray(
             Constants.Keys.ENABLED_COUNTERS);
@@ -2299,7 +2446,7 @@ public class Leanplum {
     return counterSet;
   }
 
-  @VisibleForTesting
+  @VisibleForTesting// todo no changes needed?
   public static Set<String> parseFeatureFlags(JSONObject response) {
     JSONArray enabledFeatureFlags = response.optJSONArray(
             Constants.Keys.ENABLED_FEATURE_FLAGS);
@@ -2307,7 +2454,7 @@ public class Leanplum {
     return featureFlagSet;
   }
 
-  @VisibleForTesting
+  @VisibleForTesting// todo no changes needed?
   public static Map<String, String> parseFilenameToURLs(JSONObject response) {
     JSONObject filesObject = response.optJSONObject(
             Constants.Keys.FILES);
@@ -2317,6 +2464,7 @@ public class Leanplum {
     return null;
   }
 
+  // todo no changes needed?
   private static Set<String> toSet(JSONArray array) {
     Set<String> set = new HashSet<>();
     if (array != null) {
@@ -2327,15 +2475,17 @@ public class Leanplum {
     return set;
   }
 
+  // todo no changes needed?
   public static CountAggregator countAggregator() {
     return countAggregator;
   }
 
+  // todo no changes needed?
   public static FeatureFlagManager featureFlagManager() {
     return featureFlagManager;
   }
 
-  /**
+  /** todo no changes needed?
    * Sets the time interval to periodically upload events to server.
    * Default is {@link EventsUploadInterval#AT_MOST_15_MINUTES}.
    *
@@ -2347,19 +2497,70 @@ public class Leanplum {
     }
   }
 
-  /**
+  /** todo no changes needed?
    * Enable or disable push delivery tracking. It is enabled by default.
    */
   public static void setPushDeliveryTracking(boolean enable) {
     pushDeliveryTrackingEnabled = enable;
   }
 
-  /**
+  /** todo no changes needed?
    * Returns whether the push delivery tracking is enabled.
    *
    * @return True if push delivery tracking is enabled, false otherwise.
    */
   public static boolean isPushDeliveryTrackingEnabled() {
     return pushDeliveryTrackingEnabled;
+  }
+
+  //todo validate
+  public static String getDeviceId(BackendServer server) {
+    switch (server) {
+      case CleverTap: {
+        if (cleverTapAPI == null) {
+          Log.i("must initialise clevertap api to get user id");
+          return null;
+        } else {
+          return cleverTapAPI.getCleverTapID();
+        }
+      }
+      case LeanPlum: {
+        if (!LeanplumInternal.hasCalledStart()) {
+          Log.i("Leanplum.start() must be called before calling getDeviceId.");
+          return null;
+        }
+        return APIConfig.getInstance().deviceId();
+      }
+      default:
+        return null;
+    }
+  }
+
+  //todo validate
+  public static void setCredentials(String appId, String accessKey, Context context,Boolean isDevMode){
+    if (TextUtils.isEmpty(appId)) {
+      Log.e("setAppIdForProductionMode - Empty appId parameter provided.");
+      return;
+    }
+    if (TextUtils.isEmpty(accessKey)) {
+      Log.e("setAppIdForProductionMode - Empty accessKey parameter provided.");
+      return;
+    }
+
+    for (BackendServer s : backendList) {
+      switch (s) {
+        case CleverTap: {
+          ctInstanceConfig = CleverTapInstanceConfig.createInstance(context,appId,accessKey);
+          break;
+        }
+        case LeanPlum: {
+          Constants.isDevelopmentModeEnabled = isDevMode;
+          APIConfig.getInstance().setAppId(appId, accessKey);
+          break;
+        }
+      }
+    }
+
+
   }
 }
