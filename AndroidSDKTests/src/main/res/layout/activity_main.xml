@@ -1,176 +1,261 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/scrollView"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/container"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#D6A1FF"
-    android:orientation="vertical">
+    android:layout_height="wrap_content"
+    tools:ignore="UselessParent,HardcodedText,Autofill,TextFields">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:orientation="vertical">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="8dp">
 
         <LinearLayout
-            android:id="@+id/linearLayout"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:orientation="vertical">
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bg_curve"
+            android:orientation="vertical"
+            android:padding="8dp">
 
-            <ImageView
-                android:id="@+id/imageView1"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="@string/test_image"
-                android:src="@mipmap/ic_launcher"/>
-
-            <EditText
-                android:id="@+id/editText1"
+            <Button
+                android:id="@+id/btUser"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:ems="10"
-                android:hint="@string/not_available_short"
-                android:text="@string/hello"
-            >
-
-                <requestFocus/>
-            </EditText>
-
+                android:layout_marginTop="8dp"
+                android:text="Get User" />
             <Button
-                android:id="@+id/button1"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="#777777"
-                android:text="@string/button_open_dialog"/>
-
-            <Button
-                android:id="@+id/buttonSchedule"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/button_schedule"/>
-
-            <Button
-                android:id="@+id/buttonCancel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/cancel"/>
-
-            <EditText
-                android:id="@+id/attributeName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:ems="10"
-                android:hint="@string/attribute_name"/>
+                android:text="todo"
+                android:id="@+id/btSomething"
+                />
+        </LinearLayout>
 
-            <EditText
-                android:id="@+id/attributeValue"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bg_curve"
+            android:orientation="vertical"
+            android:padding="8dp">
+
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:ems="10"
-                android:hint="@string/attribute_value"/>
+                android:text="User Register/Login"
+                android:textColor="@color/black" />
+
+            <EditText
+                android:id="@+id/etEmail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@color/white"
+                android:hint="Enter Email"
+                android:padding="8dp" />
 
             <Button
-                android:id="@+id/attributeChange"
-                android:layout_width="wrap_content"
+                android:id="@+id/btLogin"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="80dp"
-                android:text="@string/change_attribute"/>
+                android:layout_marginTop="8dp"
+                android:text="Register/Login" />
+        </LinearLayout>
 
-            <Button
-                android:id="@+id/button4"
-                android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bg_curve"
+            android:orientation="vertical"
+            android:padding="8dp">
+
+            <TextView
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="80dp"
-                android:text="Show Dialog"/>
+                android:text="User Profile Update"
+                android:textColor="@color/black" />
 
-            <Button
-                android:id="@+id/button5"
-                android:layout_width="wrap_content"
+            <EditText
+                android:id="@+id/etName"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="80dp"
-                android:text="Add Fragment"/>
+                android:layout_marginTop="8dp"
+                android:background="@color/white"
+                android:hint="Enter name"
+                android:padding="8dp" />
 
+            <EditText
+                android:id="@+id/etAge"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@color/white"
+                android:hint="Enter Age"
+                android:padding="8dp" />
+
+            <EditText
+                android:id="@+id/etGender"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@color/white"
+                android:hint="Enter Gender"
+                android:padding="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="I am a" />
+
+            <RadioGroup
+                android:id="@+id/btUserType"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checkedButton="@id/rbStudent"
+                android:orientation="horizontal">
+
+                <RadioButton
+                    android:id="@+id/rbStudent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="student" />
+
+                <RadioButton
+                    android:id="@+id/rbTeacher"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="teacher" />
+
+                <RadioButton
+                    android:id="@+id/rbParent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="parent" />
+            </RadioGroup>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="I wish to get coaching for" />
 
             <LinearLayout
+                android:id="@+id/llSubjects"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
 
-                <TextView
-                    android:id="@+id/textView"
+                <CheckBox
+                    android:id="@+id/cbEnglish"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/unread_newsfeed"
-                    android:textColor="#000000"/>
+                    android:checked="true"
+                    android:text="English" />
 
-                <TextView
-                    android:id="@+id/unreadCount"
+                <CheckBox
+                    android:id="@+id/cbMath"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/unread_count"
-                    android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="#000000"/>
+                    android:checked="true"
+                    android:text="maths" />
+
+                <CheckBox
+                    android:id="@+id/cbScience"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:text="science" />
             </LinearLayout>
 
-            <ProgressBar
-                android:id="@+id/progressBar"
-                style="?android:attr/progressBarStyleHorizontal"
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchShowUpdates"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:max="150"
-                android:progress="67" />
+                android:layout_marginTop="8dp"
+                android:checked="true"
+                android:text="I would like to get more updates and opportunities via email and other marketing communications" />
 
-            <SearchView
+            <Button
+                android:id="@+id/btUpdateProfile"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:id="@+id/search_view"
-                android:queryHint="Test">
-            </SearchView>
-
-            <Switch
-                android:id="@+id/switch1"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:checked="false"
-                android:enabled="true"
-                android:text="@string/switch_text"/>
-
-            <SeekBar
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:max="150"
-                android:progress="121"
-                android:id="@+id/seek_bar"/>
-
+                android:layout_marginTop="8dp"
+                android:text="Update profile" />
         </LinearLayout>
+
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bg_curve"
+            android:orientation="vertical"
+            android:padding="8dp">
 
             <TextView
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/fragment"
-                android:textColor="#ffffff"
-                android:textSize="30dp"/>
+                android:text="User Events"
+                android:textColor="@color/black" />
+
+            <Button
+
+                android:id="@+id/btOpenAnArticle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Clicked An Article(random name)" />
+
+            <Button
+
+                android:id="@+id/btClickedVideo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Clicked A Video(random name)" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Video Progress" />
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/seekbarVideoProgress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:stepSize="10"
+                android:valueFrom="0"
+                android:valueTo="100"
+                app:labelBehavior="floating"
+                app:thumbColor="@color/purple_700"
+                app:thumbStrokeColor="@color/purple_700"
+                app:thumbStrokeWidth="4dp"
+                app:tickColorActive="@color/purple_700"
+                app:tickVisible="true" />
+
+            <Button
+
+                android:id="@+id/btPayment"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Bought a course" />
+
 
         </LinearLayout>
 
-        <androidx.viewpager.widget.ViewPager
-            xmlns:android="http://schemas.android.com/apk/res/android"
-            android:id="@+id/pager"
-            android:layout_width="match_parent"
-            android:layout_height="200dp"/>
-
-        <WebView
-            android:id="@+id/webview1"
-            android:layout_width="fill_parent"
-            android:layout_height="400dp"/>
 
     </LinearLayout>
 
-</ScrollView>
+</androidx.core.widget.NestedScrollView>

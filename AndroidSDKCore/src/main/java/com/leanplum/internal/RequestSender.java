@@ -129,15 +129,27 @@ public class RequestSender {
     NetworkOperation op = null;
     try {
       try {
-        op = new NetworkOperation(
-            APIConfig.getInstance().getApiHost(),
-            APIConfig.getInstance().getApiPath(),
-            multiRequestArgs,
-            RequestBuilder.POST,
-            APIConfig.getInstance().getApiSSL(),
-            Constants.NETWORK_TIMEOUT_SECONDS);
+        String host = APIConfig.getInstance().getApiHost();
+        String path = APIConfig.getInstance().getApiPath();
+        String reqType = RequestBuilder.POST;
+        boolean isSSL = APIConfig.getInstance().getApiSSL();
+        JSONObject reqObj = new JSONObject();
+        reqObj.put("host",host);
+        reqObj.put("path",path);
+        reqObj.put("isSSL",isSSL);
+        reqObj.put("requestType",reqType.toUpperCase());
+        reqObj.put("body",multiRequestArgs.toString());
+        Log.d("abstract request :");
+        Log.d(reqObj.toString());
+
+        //request sender > NetworkOperation extends LeanplumHttpConnection and therefore calls parent's initConnection
+        op = new NetworkOperation(host, path, multiRequestArgs, reqType, isSSL, Constants.NETWORK_TIMEOUT_SECONDS);
 
         JSONObject responseBody = op.getJsonResponse();
+        Log.d("abstract response for api call to : "+APIConfig.getInstance().getApiPath()+ " is ------");
+        Log.d(responseBody.toString());
+        //op.logResponseHeaders();
+
         int statusCode = op.getResponseCode();
 
         if (statusCode >= 200 && statusCode <= 299) {

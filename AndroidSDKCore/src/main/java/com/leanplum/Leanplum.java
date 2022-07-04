@@ -254,7 +254,7 @@ public class Leanplum {
       return;
     }
 
-    Constants.isDevelopmentModeEnabled = false;
+    Constants.isDevelopmentModeEnabled = true;
     APIConfig.getInstance().setAppId(appId, accessKey);
   }
 
