@@ -18,7 +18,7 @@ android {
     defaultConfig {
         applicationId "com.leanplum.tests"
         targetSdkVersion COMPILE_SDK_VERSION
-        minSdkVersion MIN_SDK_VERSION
+        minSdkVersion 21
         versionCode 1
         versionName "1.0"
 
@@ -59,17 +59,34 @@ android {
     lintOptions {
         abortOnError false
     }
+    buildFeatures {
+        viewBinding true
+    }
     testOptions.unitTests.includeAndroidResources = true
 }
 
 dependencies {
+    //leanplum
     implementation project(':AndroidSDKCore')
     implementation project(':AndroidSDKPush')
     implementation project(':AndroidSDKLocation')
     implementation project(':AndroidSDKFcm')
     testImplementation project(':AndroidSDKMiPush') // add dep for unit tests only, fails otherwise
+
+    //app compat
     implementation "androidx.appcompat:appcompat:${APPCOMPAT_LIBRARY_VERSION}"
+
+
+    //google
     implementation 'com.google.android.gms:play-services-location:17.0.0'
+    implementation "com.google.android.material:material:1.6.1"
+
+    //google firebase
+    implementation platform("com.google.firebase:firebase-bom:25.10.0")
+    implementation "com.google.firebase:firebase-analytics-ktx"         //17.5
+    implementation "com.google.firebase:firebase-auth-ktx"              //19.4
+    implementation "com.google.firebase:firebase-messaging"             //20.2.4
+    implementation "com.google.firebase:firebase-messaging-directboot"  //20.2.4
 
     // Dependencies used for unit tests.
     testImplementation 'junit:junit:4.13'
@@ -94,6 +111,12 @@ dependencies {
     androidTestImplementation "com.crittercism.dexmaker:dexmaker-mockito:1.4"
     androidTestImplementation "com.crittercism.dexmaker:dexmaker-dx:1.4"
     implementation 'com.facebook.testing.screenshot:core:0.14.0'
+
+    //3rd party
+    implementation("com.squareup.okhttp3:okhttp:4.10.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.10.0")
+    implementation 'com.github.mrmike:ok2curl:0.8.0'
+
 }
 
 task jarTests(type: Jar, dependsOn: "assembleDebugUnitTest") {

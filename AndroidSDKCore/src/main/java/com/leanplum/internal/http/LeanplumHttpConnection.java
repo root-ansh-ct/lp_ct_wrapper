@@ -26,6 +26,7 @@ import androidx.annotation.VisibleForTesting;
 import com.leanplum.Leanplum;
 import com.leanplum.internal.APIConfig;
 import com.leanplum.internal.Constants;
+import com.leanplum.internal.Log;
 import com.leanplum.internal.RequestBuilder;
 import com.leanplum.internal.Util;
 import java.io.BufferedReader;
@@ -93,6 +94,32 @@ public abstract class LeanplumHttpConnection {
     */
     urlConnection.setRequestProperty("User-Agent", createUserAgent());
     urlConnection.setRequestProperty("Accept-Encoding", Constants.LEANPLUM_SUPPORTED_ENCODING);
+    logFinalParams(fullPath,httpMethod,useSSL,timeoutSeconds,urlConnection);
+    logReqHeaders();
+  }
+
+  public void logFinalParams(String fullPath, String httpMethod, boolean useSSL, int timeoutSeconds, HttpURLConnection urlConnection) {
+    Log.e( "logConnectionRequest() called with: fullPath = [" + fullPath + "], httpMethod = [" + httpMethod + "], useSSL = [" + useSSL + "], timeoutSeconds = [" + timeoutSeconds + "], urlConnection = [" + urlConnection + "]");
+  }
+
+  public void logReqHeaders() {
+    try {
+      Log.e("updated Conection:---");
+      Log.e("---url= " + urlConnection.getURL());
+      Log.e("---request headers= " + urlConnection.getRequestProperties());
+    } catch (Throwable t) {
+      t.printStackTrace();
+    }
+  }
+
+  public void logResponseHeaders() {
+    try {
+      Log.e("updated Conection:---");
+      Log.e("---url= " + urlConnection.getURL());
+      Log.e("---response headers= " + urlConnection.getHeaderFields());
+    } catch (Throwable t) {
+      t.printStackTrace();
+    }
   }
 
   /**
