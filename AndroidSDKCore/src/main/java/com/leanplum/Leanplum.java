@@ -254,7 +254,7 @@ public class Leanplum {
    * @param accessKey Your development key.
    */
   public static void setAppIdForDevelopmentMode(String appId, String accessKey) {
-    setCredentials(appId,accessKey,getContext(),true);
+    setCredentials(appId,accessKey,getContext(),true,BackendServer.LeanPlum);
   }
 
   /**  todo validate
@@ -265,7 +265,7 @@ public class Leanplum {
    * @param accessKey Your production key.
    */
   public static void setAppIdForProductionMode(String appId, String accessKey) {
-    setCredentials(appId,accessKey,getContext(),false);
+    setCredentials(appId,accessKey,getContext(),false,BackendServer.LeanPlum);
   }
 
   /** todo no changes needed?
@@ -1220,7 +1220,7 @@ public class Leanplum {
     return LeanplumInternal.hasStarted();
   }
 
-  /**  todo no changes needed?
+  /**  todo doubt: what is  an alternative of clevertap.getUserId() ? this or Leanplum.getDeviceId()?
    * Returns the userId in the current Leanplum session. This should only be called after
    * Leanplum.start().
    */
@@ -2554,7 +2554,7 @@ public class Leanplum {
     return pushDeliveryTrackingEnabled;
   }
 
-  //todo validate
+  //todo validate// put clevertap in LP.getuserid()
   public static String getDeviceId(BackendServer server) {
     switch (server) {
       case CleverTap: {
@@ -2578,7 +2578,7 @@ public class Leanplum {
   }
 
   //todo validate
-  public static void setCredentials(String appId, String accessKey, Context context,Boolean isDevMode){
+  public static void setCredentials(String appId, String accessKey, Context context,Boolean isDevMode,BackendServer server){
     if (TextUtils.isEmpty(appId)) {
       Log.e("setAppIdForProductionMode - Empty appId parameter provided.");
       return;
@@ -2588,17 +2588,15 @@ public class Leanplum {
       return;
     }
 
-    for (BackendServer s : backendList) {
-      switch (s) {
-        case CleverTap: {
-          ctInstanceConfig = CleverTapInstanceConfig.createInstance(context,appId,accessKey);
-          break;
-        }
-        case LeanPlum: {
-          Constants.isDevelopmentModeEnabled = isDevMode;
-          APIConfig.getInstance().setAppId(appId, accessKey);
-          break;
-        }
+    switch (server) {
+      case CleverTap: {
+        ctInstanceConfig = CleverTapInstanceConfig.createInstance(context,appId,accessKey);
+        break;
+      }
+      case LeanPlum: {
+        Constants.isDevelopmentModeEnabled = isDevMode;
+        APIConfig.getInstance().setAppId(appId, accessKey);
+        break;
       }
     }
 

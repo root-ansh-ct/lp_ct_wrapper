@@ -16,7 +16,6 @@ class LPFCMService {
 
 
 
-
     companion object{
 
         fun getOkHttpClient(): OkHttpClient {
@@ -45,26 +44,26 @@ class LPFCMService {
                 |}""".trimMargin()
             log("finalBody",body)
             val request = Request.Builder().url("https://api.leanplum.com/api?action=addAndroidNotificationChannel").post(body.toRequestBody(mediaType)).addHeader("Accept", "application/json").addHeader("Content-Type", "application/json").build()
-            getOkHttpClient().newCall(request).enqueue(object :Callback{
-                override fun onFailure(call: Call, e: IOException) {
-                    kotlin.runCatching {
-                        log("cause",e.cause)
-                        log("localizedMessage",e.localizedMessage)
-                        log("message",e.message)
-                        log("stackTrace",e.stackTrace)
-                        log("suppressed",e.suppressed)
-                        e.printStackTrace()
-                    }
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-                    response.let {r->
-                        r.message.let { log("messsage",it) }
-                        r.body.let { log("body",it) }
-                        r.body?.string().let { log("body string",it) }
-                    }
-                }
-            })
+//            getOkHttpClient().newCall(request).enqueue(object :Callback{
+//                override fun onFailure(call: Call, e: IOException) {
+//                    kotlin.runCatching {
+//                        log("cause",e.cause)
+//                        log("localizedMessage",e.localizedMessage)
+//                        log("message",e.message)
+//                        log("stackTrace",e.stackTrace)
+//                        log("suppressed",e.suppressed)
+//                        e.printStackTrace()
+//                    }
+//                }
+//
+//                override fun onResponse(call: Call, response: Response) {
+//                    response.let {r->
+//                        r.message.let { log("messsage",it) }
+//                        r.body.let { log("body",it) }
+//                        r.body?.string().let { log("body string",it) }
+//                    }
+//                }
+//            })
         }
 
     }

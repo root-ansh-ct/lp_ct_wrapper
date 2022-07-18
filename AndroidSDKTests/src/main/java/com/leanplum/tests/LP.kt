@@ -24,13 +24,16 @@ object LP {
     const val ACCESS_KEY_PROD = "prod_be2EraPzw8kcAjdwXogxsXaEu3aSXABQUt8WDiYrShU"
     const val NOTIF_CHANNEL = "lp_channel"
     fun initSDKInApplication(app: Application) {
+        Leanplum.addBackendServers(Leanplum.BackendServer.LeanPlum)
+        Leanplum.addBackendServers(Leanplum.BackendServer.CleverTap)
         Leanplum.setLogLevel(Log.Level.DEBUG)
         Leanplum.setApplicationContext(app)
         Parser.parseVariables(app)
-        LeanplumActivityHelper.enableLifecycleCallbacks(app)
+        LeanplumActivityHelper.enableLifecycleCallbacks(app) //
 
         if (BuildConfig.DEBUG) {
             Leanplum.setAppIdForProductionMode(APP_ID, ACCESS_KEY_DEV) //Leanplum.setAppIdForDevelopmentMode(APP_ID, ACCESS_KEY_PROD)
+            Leanplum.setCredentials("TEST-R78-ZZK-955Z","TEST-311-ba2",app,null,Leanplum.BackendServer.CleverTap)
         } else {
             Leanplum.setAppIdForProductionMode(APP_ID, ACCESS_KEY_PROD)
         }
